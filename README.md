@@ -1,0 +1,3 @@
+general purpose frame handler; suitable to process pixel data for lcd screens such as the ili9341.
+to use, you must include this as a statically linked library and integrate accordingly....
+i dont really know what i'm talking about but idk
