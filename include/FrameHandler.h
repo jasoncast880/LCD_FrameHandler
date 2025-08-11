@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 
-#define ALPHA_CLR_565 0xF81F
+#define ALPHA_CLR_565 0xF81F //a 565 magenta color
 
 struct Tilemap;
 struct Tileset;
@@ -75,11 +75,14 @@ public:
     virtual ~Tilemap();
 }; 
 
+struct Sprite;
+
 struct Base: public Tilemap{ //only make 1
 public:
     uint8_t* mapGuide;
     size_t guideLen;//number of elements in mapGuide&mapBuf
 
+    Sprite* spriteArr;
     /* idea: make a second tileset for masked sprite data
      * allows me to keep the current base without changing the size of tileset
      * !!members associated below!!
@@ -92,6 +95,8 @@ public:
     uint8_t hashPos(int x_pix,int y_pix); 
     //base will never be destroyed (so far)
     void render();
+    
+
 };
 
 struct Sprite: public Tilemap{
@@ -117,7 +122,7 @@ public:
     int x,y;
     //describes the height/width of the spritemap
     uint8_t tiles_wide, tiles_high; 
-    uint8_t proc_tiles_wide, proc_tiles_high; 
+    uint8_t final_tiles_wide, final_tiles_high; 
     Tileset* tileset;
     uint8_t* mapBuf;
 

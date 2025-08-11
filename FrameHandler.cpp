@@ -204,13 +204,12 @@ Sprite::Sprite(Base* base, int x, int y, uint8_t tiles_wide, uint8_t tiles_high,
 
     this->sprite_size = tiles_wide*tiles_high;
 
-    this->proc_tiles_wide = tiles_wide;
-    this->proc_tiles_high = tiles_high;
+    this->final_tiles_wide = tiles_wide;
+    this->final_tiles_high = tiles_high;
 
-    //tileset of sprite;; should have the pink alpha filter 
+    //tileset of sprite;; background-alpha layer is defined in header
     this->tileset = tileset;
 
-    //tilemap data, can be stored in an array in assets, (may change later)
     this->mapBuf = mapBuf;
     
     /*
@@ -233,26 +232,26 @@ Sprite::Sprite(Base* base, int x, int y, uint8_t tiles_wide, uint8_t tiles_high,
 Tilemap* Sprite::getBaseTilemap(){
     //for x - width
     if( x < tileset->tile_len && x % tileset->tile_len != 0) {
-        proc_tiles_wide++;
+        final_tiles_wide++;
     } else if ( x > tileset->tile_len && tileset->tile_len % x != 0) {
-        proc_tiles_wide++;
+        final_tiles_wide++;
     }
     
     //for y - width
     if( y < tileset->tile_len && y % tileset->tile_len != 0) {
-        proc_tiles_high++;
+        final_tiles_high++;
     } else if ( y > tileset->tile_len && tileset->tile_len % y != 0) {
-        proc_tiles_high++;
+        final_tiles_high++;
     }
 
-    Tile* tiles = new Tile[proc_tiles_wide*proc_tiles_high];
+    Tile* tiles = new Tile[final_tiles_wide*final_tiles_high];
 
-    for(int i = 0;i<proc_tiles_high;i++){
-        for(int j = 0;j<proc_tiles_wide;j++){
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
             int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
 
             Tile* tile = base->getTilemapData(idx);
-            tiles[(i*proc_tiles_wide)+j] = *tile;
+            tiles[(i*final_tiles_wide)+j] = *tile;
             
             base->mapGuide[idx] = 1;
         }
@@ -265,7 +264,7 @@ Tilemap* Sprite::getBaseTilemap(){
     delete[] tiles;
     printf("\n");
 
-    Tilemap* baseTilemap = new Tilemap(baseTiles, NULL,proc_tiles_wide,proc_tiles_high);
+    Tilemap* baseTilemap = new Tilemap(baseTiles, NULL,final_tiles_wide,final_tiles_high);
 
     return baseTilemap;
     //tileset_validator(baseTiles, tiles_wide, tiles_high); //OK
@@ -318,7 +317,6 @@ Tileset* Sprite::getFinalTileset(){
         }
     }
 
-
     Tileset* final_tileset = base_tilemap->tileset;
     return final_tileset;
 }
@@ -329,18 +327,14 @@ uint8_t Tilemap::hashPos(int x_pix, int y_pix){
 
 Sprite::~Sprite(){
     //delete bufPtr;
-
-    for(int i=0;i<base->tiles_high;i++){
-        for(int j=0;j<base->tiles_wide;j++){
-            base->mapGuide[i*tiles_wide+j]=0; //reset the things on base guide
-        }
-    }
+    //base->mapGuide[i*tiles_wide+j]=0; //reset the things on base guide
 } 
 
 //try: frame data renders, sends its tiles to base. base uses linked list to update clean to dirty, update sprited tiles to dirty.
 //
+//make dirty, or remove from dirty if changing position!
 void Sprite::render() { //only relevant subsequent to instantiation; 
-                             //on pos/tiles update use the other 3
+                        //on pos/tiles update use the other 3
 
     this->finishedTiles = getFinalTileset();
 }
@@ -353,13 +347,33 @@ void Sprite::render(uint8_t* spriteMapBuf){
 }
 
 void Sprite::render(uint16_t x, uint16_t y){
+
+    //clean the tiles on base that it used to inhabit
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+            base->mapGuide[idx] = 0;
+        }
+    }
+
+
     this->x = x;
     this->y = y;
 
     this->finishedTiles = getFinalTileset();
 }
 
+//convenience mash of the two
 void Sprite::render(uint16_t x, uint16_t y, uint8_t* spriteMapBuf){ 
+    //clean the tiles on base that it used to inhabit
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+            base->mapGuide[idx] = 0;
+        }
+    }
+
+
     this->mapBuf = spriteMapBuf;
     this->x = x;
     this->y = y;
