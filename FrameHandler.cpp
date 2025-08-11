@@ -3,17 +3,8 @@
 /*
  * @brief: this class will handle all of the buffer rendering *before* the sprites are added. tilemaps & sets used to reduce wram size.
  *
- * control the frame buffer within wram, and you control the display itself.
  * */
 
-/*
- * GOALS OF THIS HELPER FILE:
- * is it faster to:
- * -update specific tiles vs updating whole frame using dma?
- *
- * is it more mem efficient? (definitely, this is the main advantage of tiles)
- *
- */
 
 Tile::Tile(){
     this->tile_len = 16;
@@ -119,7 +110,7 @@ Tileset::~Tileset(){
     delete[] tileArr;
 }
 
-Tile* Tileset::getTileData(uint8_t tileNum){
+Tile* Tileset::getTilesetData(uint8_t tileNum){
     return &tileArr[tileNum]; 
 }
 
@@ -128,9 +119,7 @@ void Tileset::setTileData(uint8_t tileNum, Tile* tile){
 }
 
 
-Tilemap::Tilemap(){
-    printf("Tilemap def constructor invoked");
-} //default constructor (not used)
+Tilemap::Tilemap(){} 
 
 Tilemap::Tilemap(Tileset* tileset, uint8_t* mapBuf, uint8_t tiles_wide, uint8_t tiles_high){
     this->tileset = tileset;
@@ -142,40 +131,9 @@ Tilemap::Tilemap(Tileset* tileset, uint8_t* mapBuf, uint8_t tiles_wide, uint8_t 
     this->tiles_high = tiles_high;
 }
 
-FrameData Tilemap::render(){  //asssume this takes over the whole screen
-
-    FrameData frame;
-    frame.x = 0;
-    frame.y = 0;
-    //portablility issue here
-    frame.w = 240;
-    frame.h = 320;
-    //
-    frame.tilemap = this;
-    frame.tileset = this->tileset;
-
-    //go to other part !!!!
-    /*
-    int counter = 0;
-    for(int i = 0; i<tiles_high; i++){
-        for(int j=0;j<tiles_wide; j++){
-            //Tile* tile=tileset->getTileData(mapBuf[counter]);
-            //draw this tile...
-            counter++;
-        }
-    }
-    */
-    // !!!!
-    // Is it efficient to return a buffer of this size?
-    // for a sprite i could see justification, for screen rectification. not for a full 
-    // screen update though.
-
-    return frame;
-}
-
-Tile* Tilemap::getTileData(uint8_t tileNum){
-    printf("Tilemap calls getTileData(%d)\n", tileNum);
-    return(tileset->getTileData(mapBuf[tileNum]));
+Tile* Tilemap::getTilemapData(uint8_t tileNum){
+    printf("Tilemap calls getTilesetData(mapBuf[%d])\n", tileNum);
+    return(tileset->getTilesetData(mapBuf[tileNum]));
 }
 
 Tilemap::~Tilemap(){
@@ -199,8 +157,8 @@ Base::Base(Tileset* tileset, uint8_t* mapBuf){
     printf("from Base constructor:");
     printf("0x%p\n", &mapGuide[0]);
     /*
-    mapGuide[x] = 0: DIRTY : replace tile 'x' with tileset->tiles[mapBuf[x]] 
-    mapGuide[x] = 1: CLEAN : dont do nothing
+    mapGuide[x] = 1: DIRTY : replace tile 'x' with tileset->tiles[mapBuf[x]] 
+    mapGuide[x] = 0: CLEAN : dont do nothing
     */
     for(int i=0; i<guideLen; i++){
         mapGuide[i]=1;
@@ -208,42 +166,10 @@ Base::Base(Tileset* tileset, uint8_t* mapBuf){
 
 }
 
-FrameData Base::render(){
-    FrameData frame;
-
-    for(int i = 0; i<guideLen; i++) {
-        if(mapGuide[i] == 0) {
-            //alter a ds to tell other sw to clean; ie queue,ll
-            mapGuide[i]=1;
-        } else {
-            //dont
-        }
-    }
-
-    return frame;
+void Base::render(){
+    //controls dirty, clean tiles. each time this is called it should 
+    //pulse a ds 
 }
-
-/*
-FrameData Base::render(){
-
-    int counter = 0;
-    for(int i=0; i<tiles_high; i++){
-        for(int j=0;j<tiles_wide;j++){
-            if(*(mapGuidePtr+(tiles_wide*i+j))==0){
-                ili9341_writeCommand(NOOP);
-            }
-            else{ //clean up 'dirty' tiles on a base render pass
-                tileset->render((j*tileset->tile_len),
-                        (i*tileset->tile_len),
-                        mapBuf[counter]);
-                *(mapGuidePtr+(tiles_wide*i+j))=0;
-            }
-            counter++;
-        }
-    }
-    printMapGuide(); //for debug
-}
-*/
 
 void Base::printMapGuide(){
     //debug function
@@ -323,9 +249,12 @@ Tilemap* Sprite::getBaseTilemap(){
 
     for(int i = 0;i<proc_tiles_high;i++){
         for(int j = 0;j<proc_tiles_wide;j++){
-            Tile* tile = base->getTileData(base->hashPos(
-                        (x+j*this->tileset->tile_len),
-                        y+i*this->tileset->tile_len));
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            Tile* tile = base->getTilemapData(idx);
+            tiles[(i*proc_tiles_wide)+j] = *tile;
+            
+            base->mapGuide[idx] = 1;
         }
     }
 
@@ -362,7 +291,7 @@ Tileset* Sprite::getFinalTileset(){
         for(int a = 0; a < tileset->tile_len ; a++ ) {
             for(int j = 0; j < tiles_wide ; j++){
                 int curr_idx = hashPos(j*tileset->tile_len,i*tileset->tile_len);
-                Tile* tile = tileset->getTileData(curr_idx);
+                Tile* tile = this->getTilemapData(curr_idx);
                 for( int b ; b < tileset->tile_len ; b++ ) {
                     pix_buf[counter] = tile->getPixel(a,b);
                     counter++;

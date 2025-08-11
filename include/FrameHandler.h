@@ -4,69 +4,10 @@
 #include <cstring>
 #include <string>
 
-/*
- * there should be 2 frames MAXIMUM in existence, one being drawn,
- * one being processed.
- * this lib considers the following stages of frame gen:
- *
- * 1) game logic (taking input from user and sharing it to cpu, which
- * in turn will make updates to other peripherals, shared memory)
- *
- * 2) asset gathering (get pixel data; NOTE this library assumes that the data
- * is formatted in a specific pixel format and byte order. )
- *  -> for now the assets are stored in assets lib; 
- *  however, a more robust solution is to gather assets from a file in
- *  storage, ie sdc.
- *
- * 3) rendering 
- * This involves taking assets in context with scene configuration variables 
- * to alter the necessary tiles.
- * This can be done in two ways:
- *      1: Only have one frame, and update certain tiles in coordinate so that
- *      you can minimize the lcd's processor time, limit the size of the lcd,
- *      increase the throughput of other peripherals
- *      2: A fully flushed out double buffering system that allows for dynamic
- *      rendering: while one frame is dedicated to steps 1 - 3, another is
- *      able to focus solely on being drawn via spi (likely longest step)
- *
- * (currently only mode 1 is available, implementation of these rendering
- * modes should be done by the frame class.)
- *
- * note that this library takes the assets into account by
- * reading through the data, ie xxx_tileset.cpp as a 'tileset object'
- * which in turn is broken into multiple tiles which can be iterated on
- * (transformed, masked, LATER aliased) in order to create a flexible and
- * robust screen interface.
- * *Which means* i have to write formatting tools for later users so that
- * their assets can be read by this lib
- * ->ALIASING STUFF plsss write
- *
- * 4) drawing
- * Drawing is done on the driver-side and i've seperated that so that this 
- * library can be platform independent & thread-safe, whatever is needed
- *
- * OVERALL GOAL: 
- *      MAXIMIZE:
- *      - frames
- *      - color/formatting options
- *      - user ability to handle data input, pixel output
- *      MINIMIZE: 
- *      - RAM Usage
- *      REQUIRE:
- *      -thread safety
- *      -debuggability (without printf???)
- */
 #define ALPHA_CLR_565 0xF81F
 
 struct Tilemap;
 struct Tileset;
-
-struct FrameData { //like a rectangle-portion of the screen;for partial updates
-    uint16_t x,y,w,h; //in pixels
-
-    Tilemap* tilemap;
-    Tileset* tileset;
-};
 
 struct Tile { //implement assuming indexed color
 public:
@@ -99,9 +40,7 @@ public:
     Tileset(const Tileset& other);
     Tileset& operator=(const Tileset& other);
 
-    //remov
-    //virtual void render(uint16_t x, uint16_t y, uint8_t tileNum); 
-    Tile* getTileData(uint8_t tileNum);
+    Tile* getTilesetData(uint8_t tileNum);
     void setTileData(uint8_t tileNum, Tile* tile);
 
     ~Tileset(); //need to fix
@@ -130,8 +69,7 @@ public:
 
     Tilemap();
     Tilemap(Tileset* tileset, uint8_t* mapBuf,uint8_t tiles_wide, uint8_t tiles_high); //take the whole screen
-    FrameData render();
-    Tile* getTileData(uint8_t tileNum);
+    Tile* getTilemapData(uint8_t tileNum);
     void alterTile(Tile* tile, Tile* newTile);
     uint8_t hashPos(int x_pix,int y_pix); 
     virtual ~Tilemap();
@@ -150,12 +88,10 @@ public:
 
     Base();
     Base(Tileset* tileset, uint8_t* mapBuf); //take the whole screen
-    
-    FrameData render(); //gimme a linked list of tiles
     void printMapGuide();
-    
     uint8_t hashPos(int x_pix,int y_pix); 
     //base will never be destroyed (so far)
+    void render();
 };
 
 struct Sprite: public Tilemap{
@@ -164,14 +100,14 @@ private:
     uint8_t sprite_size;
     uint8_t statusFlag = 0x00;
 
-    Tile* spliceX(Tile* tile1, Tile* tile2, uint8_t cutoff); //after splicing, insert into sprite_Tileset
-    Tile* spliceY(Tile* tile1, Tile* tile2, uint8_t cutoff);
-    Tile* merge(Tile* tile1, Tile* tile2);
-
     struct hashedPix; 
     void tileset_validator(Tileset*,int w, int h);
 
-    Tilemap* getBaseTilemap();
+    //map based on tiles sprite contiguously inhabits
+    //used in getFinalTileset()
+    Tilemap* getBaseTilemap(); 
+
+    //for processing the tileset
     Tileset* getFinalTileset();
 
 public:
