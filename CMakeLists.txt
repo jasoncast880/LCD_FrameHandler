@@ -5,12 +5,12 @@ file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 # make it so this is easily integrated into freertos code, task creation, async contexts
 
 add_library(frame_handler STATIC
+    #pico_stdlib 
+    #hardware_spi
   FrameHandler.cpp
 )
 
 target_link_libraries(frame_handler 
-    #pico_stdlib 
-    #hardware_spi
 )
 
 target_include_directories(frame_handler PUBLIC

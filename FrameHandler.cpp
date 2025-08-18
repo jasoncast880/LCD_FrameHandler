@@ -144,6 +144,7 @@ void Tilemap::alterTile(uint16_t tile_idx, uint8_t newTile) {
     this->mapBuf[tile_idx] = newTile;
 }
 
+
 //need to account for edge case rendering
 Base::Base(){}
 Base::Base(Tileset* tileset, uint8_t* mapBuf){ 
@@ -330,7 +331,7 @@ Tileset* Sprite::getFinalTileset(){
 }
 
 uint8_t Tilemap::hashPos(int x_pix, int y_pix){
-    return ((x_pix/tileset->tile_len)+(y_pix/tileset->tile_len)*(this->tiles_wide));
+    return ((x_pix/this->tileset->tile_len)+(y_pix/this->tileset->tile_len)*(this->tiles_wide));
 }
 
 Sprite::~Sprite(){
