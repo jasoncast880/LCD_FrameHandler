@@ -115,14 +115,14 @@ Tile* Tileset::getTilesetData(uint8_t tileNum){
 }
 
 void Tileset::setTileData(uint8_t tileNum, Tile* tile){
-    tileArr[tileNum] = *tile; //trigger Tile assignment op??
+    tileArr[tileNum] = *tile;
 }
-
 
 Tilemap::Tilemap(){} 
 
 Tilemap::Tilemap(Tileset* tileset, uint8_t* mapBuf, uint8_t tiles_wide, uint8_t tiles_high){
-    this->tileset = tileset;
+    this->tileset = tileset; //ensure that the tileset's constructor makes space for
+                             // extra tiles for les sprites!!!!!
     this->mapBuf = mapBuf;
     //HARDCODED SCREEN DIMS, add err handling just in case later.
     this->x=0;
@@ -138,6 +138,10 @@ Tile* Tilemap::getTilemapData(uint8_t tileNum){
 
 Tilemap::~Tilemap(){
     printf("Tilemap Destructor invoked\n");
+}
+
+void Tilemap::alterTile(uint16_t tile_idx, uint8_t newTile) { 
+    this->mapBuf[tile_idx] = newTile;
 }
 
 //need to account for edge case rendering
@@ -157,18 +161,21 @@ Base::Base(Tileset* tileset, uint8_t* mapBuf){
     printf("from Base constructor:");
     printf("0x%p\n", &mapGuide[0]);
     /*
-    mapGuide[x] = 1: DIRTY : replace tile 'x' with tileset->tiles[mapBuf[x]] 
     mapGuide[x] = 0: CLEAN : dont do nothing
+    mapGuide[x] = 1: DIRTY : replace tile 'x' with tileset->tiles[mapBuf[x]] 
     */
     for(int i=0; i<guideLen; i++){
         mapGuide[i]=1;
     }
 
+    Sprite* spriteArr = new Sprite[10];
+
 }
 
 void Base::render(){
-    //controls dirty, clean tiles. each time this is called it should 
-    //pulse a ds 
+    for(int i = 0; i < 10 ; i++) { //idk how many sprites i got / can have
+        spriteArr[i].render();
+    }
 }
 
 void Base::printMapGuide(){
@@ -270,6 +277,7 @@ Tilemap* Sprite::getBaseTilemap(){
     //tileset_validator(baseTiles, tiles_wide, tiles_high); //OK
 }
 
+
 struct Sprite::hashedPix {
     //position in context of a single tile
     int x_pix, y_pix;
@@ -326,8 +334,17 @@ uint8_t Tilemap::hashPos(int x_pix, int y_pix){
 }
 
 Sprite::~Sprite(){
-    //delete bufPtr;
-    //base->mapGuide[i*tiles_wide+j]=0; //reset the things on base guide
+    //prob gonna have to delete a lot more of dynamically allocated mem
+    delete this->finishedTiles;
+
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            base->tileset->setTileData(idx,base->copyTiles->getTilesetData(idx));
+            base->mapGuide[idx] = 1;
+        }
+    }
 } 
 
 //try: frame data renders, sends its tiles to base. base uses linked list to update clean to dirty, update sprited tiles to dirty.
@@ -337,6 +354,16 @@ void Sprite::render() { //only relevant subsequent to instantiation;
                         //on pos/tiles update use the other 3
 
     this->finishedTiles = getFinalTileset();
+    
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            base->tileset->setTileData(idx,finishedTiles->getTilesetData(i+j*final_tiles_wide));
+            base->mapGuide[idx] = 1;
+        }
+    }
+
 }
 
 void Sprite::render(uint8_t* spriteMapBuf){ 
@@ -344,6 +371,15 @@ void Sprite::render(uint8_t* spriteMapBuf){
     delete finishedTiles;
 
     this->finishedTiles = getFinalTileset(); //revise this method
+
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            base->tileset->setTileData(idx,finishedTiles->getTilesetData(i+j*final_tiles_wide));
+            base->mapGuide[idx] = 1;
+        }
+    }
 }
 
 void Sprite::render(uint16_t x, uint16_t y){
@@ -352,33 +388,57 @@ void Sprite::render(uint16_t x, uint16_t y){
     for(int i = 0;i<final_tiles_high;i++){
         for(int j = 0;j<final_tiles_wide;j++){
             int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
-            base->mapGuide[idx] = 0;
+
+            base->tileset->setTileData(idx, base->copyTiles->getTilesetData(idx));
+            base->mapGuide[idx] = 1;
         }
     }
 
-
     this->x = x;
     this->y = y;
+    delete finishedTiles;
 
     this->finishedTiles = getFinalTileset();
+
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            base->tileset->setTileData(idx,finishedTiles->getTilesetData(i+j*final_tiles_wide));
+            base->mapGuide[idx] = 1;
+        }
+    }
 }
 
 //convenience mash of the two
-void Sprite::render(uint16_t x, uint16_t y, uint8_t* spriteMapBuf){ 
+void Sprite::render(uint16_t x, uint16_t y, uint8_t* spriteMapBuf){
+    //
     //clean the tiles on base that it used to inhabit
     for(int i = 0;i<final_tiles_high;i++){
         for(int j = 0;j<final_tiles_wide;j++){
             int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
-            base->mapGuide[idx] = 0;
+
+            base->tileset->setTileData(idx, base->copyTiles->getTilesetData(idx));
+            base->mapGuide[idx] = 1;
         }
     }
 
-
-    this->mapBuf = spriteMapBuf;
     this->x = x;
     this->y = y;
+    this->mapBuf = spriteMapBuf;
+
+    delete finishedTiles;
 
     this->finishedTiles = getFinalTileset();
+
+    for(int i = 0;i<final_tiles_high;i++){
+        for(int j = 0;j<final_tiles_wide;j++){
+            int idx = base->hashPos((x+j*this->tileset->tile_len),y+i*this->tileset->tile_len);
+
+            base->tileset->setTileData(idx,finishedTiles->getTilesetData(i+j*final_tiles_wide));
+            base->mapGuide[idx] = 1;
+        }
+    }
 }
 
 /*

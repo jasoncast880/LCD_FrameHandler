@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <string>
+#include <queue>
 
 #define ALPHA_CLR_565 0xF81F //a 565 magenta color
 
@@ -53,11 +54,6 @@ public:
  *   320:20 tiles
  *
  *  IF using 8 pix tilemap: 40 tiles by 30 tiles
- *
- *  implement feature:
- *  tilemap has to remember which tiles have been changed, so that it can 
- *  re-render the necessary pixels.
- *
  */ 
 
 struct Tilemap{ 
@@ -70,7 +66,7 @@ public:
     Tilemap();
     Tilemap(Tileset* tileset, uint8_t* mapBuf,uint8_t tiles_wide, uint8_t tiles_high); //take the whole screen
     Tile* getTilemapData(uint8_t tileNum);
-    void alterTile(Tile* tile, Tile* newTile);
+    void alterTile(uint16_t tile_idx, uint8_t newTile);
     uint8_t hashPos(int x_pix,int y_pix); 
     virtual ~Tilemap();
 }; 
@@ -79,15 +75,27 @@ struct Sprite;
 
 struct Base: public Tilemap{ //only make 1
 public:
-    uint8_t* mapGuide;
+    uint8_t* mapBuf;   // keeps track of which tiles go where
+    uint8_t* mapGuide; // helps keeps count of dirty, clean tiles
+     /*
+    mapGuide[x] = 0: CLEAN : dont do nothing
+    mapGuide[x] = 1: DIRTY : replace tile 'x' with tileset->tiles[mapBuf[x]] 
+      * IMPORTANT!!!!
+      * mapGuide[x] = 0 should only be called if the class 
+      * user has drawn base->tileset->tileArr[x]::
+      * 
+    */
+
     size_t guideLen;//number of elements in mapGuide&mapBuf
 
+    Tileset* copyTiles; //a copy of the original base, so once sprites 
+                        //leave you can recreate base during clean op
     Sprite* spriteArr;
-    /* idea: make a second tileset for masked sprite data
-     * allows me to keep the current base without changing the size of tileset
+    uint8_t numSprites;
+
+    /* 
      * !!members associated below!!
      */
-    //
 
     Base();
     Base(Tileset* tileset, uint8_t* mapBuf); //take the whole screen
@@ -96,7 +104,6 @@ public:
     //base will never be destroyed (so far)
     void render();
     
-
 };
 
 struct Sprite: public Tilemap{
@@ -143,6 +150,7 @@ public:
 
 //these below should go into a menu/ui configuration file, on 
 //app level
+/*
 struct Char_16{ //simplified hash-map structure for storing font data
 public:
     char glyph;
@@ -160,4 +168,4 @@ public:
     Font(Tileset* tileset, char* charBuf,size_t len);
     void printFont(uint8_t x,uint8_t y,std::string txt);
 };
-
+*/
